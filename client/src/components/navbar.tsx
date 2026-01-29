@@ -1,5 +1,6 @@
 import { Shield } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { WalletConnect } from "./wallet-connect";
 
 export function Navbar() {
   return (
@@ -20,6 +21,7 @@ export function Navbar() {
             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" data-testid="indicator-network-active" />
             <span className="text-sm text-muted-foreground">Network Active</span>
           </div>
+          <WalletConnect />
           <ThemeToggle />
         </div>
       </div>

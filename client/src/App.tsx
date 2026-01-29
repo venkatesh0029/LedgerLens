@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
+import { WalletProvider } from "@/contexts/wallet-context";
 import { Navbar } from "@/components/navbar";
 import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
@@ -21,13 +22,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <div className="min-h-screen bg-background">
-            <Navbar />
-            <Router />
-          </div>
-          <Toaster />
-        </TooltipProvider>
+        <WalletProvider>
+          <TooltipProvider>
+            <div className="min-h-screen bg-background">
+              <Navbar />
+              <Router />
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </WalletProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

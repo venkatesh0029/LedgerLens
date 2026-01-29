@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { insertTransactionSchema } from "@shared/schema";
-import { Send } from "lucide-react";
+import { Send, Wallet } from "lucide-react";
+import { useWallet } from "@/contexts/wallet-context";
 
 const transactionFormSchema = insertTransactionSchema.extend({
   amount: z.string().min(1, "Amount is required").refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
@@ -27,6 +30,8 @@ interface TransactionFormProps {
 }
 
 export function TransactionForm({ onSubmit, isPending }: TransactionFormProps) {
+  const { isConnected, address } = useWallet();
+  
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
@@ -40,15 +45,29 @@ export function TransactionForm({ onSubmit, isPending }: TransactionFormProps) {
     },
   });
 
+  useEffect(() => {
+    if (isConnected && address) {
+      form.setValue("userId", address);
+    }
+  }, [isConnected, address, form]);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Send className="h-5 w-5" />
           Record New Transaction
+          {isConnected && (
+            <Badge variant="outline" className="ml-2 gap-1">
+              <Wallet className="h-3 w-3" />
+              Connected
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>
-          Submit a new transaction to the blockchain network
+          {isConnected 
+            ? "Submit a transaction from your connected wallet" 
+            : "Connect your wallet or enter a wallet address manually"}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -126,6 +145,7 @@ export function TransactionForm({ onSubmit, isPending }: TransactionFormProps) {
                       className="resize-none"
                       data-testid="input-description"
                       {...field}
+                      value={field.value ?? ""}
                     />
                   </FormControl>
                   <FormMessage />
