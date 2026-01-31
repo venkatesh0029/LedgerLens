@@ -48,6 +48,32 @@ export function WalletConnect() {
     }
   };
 
+  const handleSwitchNetwork = async () => {
+    try {
+      await switchToSepolia();
+      toast({
+        title: "Network Switched",
+        description: "Successfully switched to Sepolia Testnet",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Network Switch Failed",
+        description: err.message || "Failed to switch network",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Wallet Error",
+        description: error,
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
+
   if (!isConnected) {
     return (
       <Button
@@ -85,13 +111,27 @@ export function WalletConnect() {
         <div className="px-2 py-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Network</span>
-            <Badge 
-              variant={isCorrectNetwork ? "default" : "destructive"} 
-              className="text-xs"
-              data-testid="badge-network"
-            >
-              {chainName}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge 
+                variant={isCorrectNetwork ? "default" : "destructive"} 
+                className="text-xs"
+                data-testid="badge-network"
+              >
+                {chainName}
+              </Badge>
+              {!isCorrectNetwork && (
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-6 w-6" 
+                  onClick={handleSwitchNetwork}
+                  title="Switch to Sepolia"
+                  data-testid="button-switch-network"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-between mt-2">
             <span className="text-sm text-muted-foreground">Balance</span>
