@@ -158,6 +158,7 @@ export class MemStorage implements IStorage {
     const transaction: Transaction = {
       id,
       ...transactionData,
+      description: transactionData.description ?? null,
       transactionHash,
       timestamp: new Date(),
     };
@@ -266,6 +267,7 @@ export class MemStorage implements IStorage {
     const block: BlockchainBlock = {
       id,
       ...insertBlock,
+      transactionCount: insertBlock.transactionCount ?? 0,
       timestamp: new Date(),
     };
 
