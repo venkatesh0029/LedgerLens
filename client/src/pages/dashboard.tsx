@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatCard } from "@/components/stat-card";
 import { TransactionForm } from "@/components/transaction-form";
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Activity, AlertCircle, CheckCircle2, DollarSign, Filter } from "lucide-react";
-import { type Transaction, type DashboardStats, type FraudAlert as FraudAlertType } from "@shared/schema";
+import { type Transaction, type DashboardStats, type FraudAlert as FraudAlertType, type BlockchainBlock } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Dashboard() {
@@ -48,22 +48,35 @@ export default function Dashboard() {
   });
 
   // Fetch trust score
-  const { data: trustScore, isLoading: trustScoreLoading } = useQuery({
+  const { data: trustScore, isLoading: trustScoreLoading } = useQuery<{
+    trustScore: string;
+    address: string;
+    transactionCount: number;
+    flaggedCount: number;
+  }>({
     queryKey: ["/api/trust-score"],
   });
 
   // Fetch blockchain blocks
-  const { data: blocks = [], isLoading: blocksLoading } = useQuery({
+  const { data: blocks = [], isLoading: blocksLoading } = useQuery<BlockchainBlock[]>({
     queryKey: ["/api/blockchain/blocks"],
   });
 
   // Fetch chart data
-  const { data: chartData = [], isLoading: chartLoading } = useQuery({
+  const { data: chartData = [], isLoading: chartLoading } = useQuery<Array<{
+    date: string;
+    verified: number;
+    flagged: number;
+    pending: number;
+  }>>({
     queryKey: ["/api/analytics/fraud-stats"],
   });
 
   // Fetch trust score trend
-  const { data: trendData = [], isLoading: trendLoading } = useQuery({
+  const { data: trendData = [], isLoading: trendLoading } = useQuery<Array<{
+    timestamp: string;
+    score: number;
+  }>>({
     queryKey: ["/api/analytics/trust-trend"],
   });
 
