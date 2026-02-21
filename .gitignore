@@ -1,6 +1,17 @@
-node_modules
-dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+# Datasets
+*.csv
+cc-dataset/
+FraudDetectionDApp/backend/ml/dataset/
+
+# ML models
+*.pkl
+*.joblib
+*.pt
+*.bin
+
+# Python
+.venv/
+__pycache__/
+
+# Frontend
+node_modules/
