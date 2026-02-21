@@ -7,14 +7,15 @@ export interface WalletState {
   balance: string | null;
 }
 
-export const SEPOLIA_CHAIN_ID = 11155111;
+export const TARGET_CHAIN_ID = 1337; // Ganache Local
 
 export const CHAIN_NAMES: Record<number, string> = {
   1: "Ethereum Mainnet",
   5: "Goerli Testnet",
-  11155111: "Sepolia Testnet",
+  1337: "Ganache Local",
   137: "Polygon Mainnet",
   80001: "Mumbai Testnet",
+  11155111: "Sepolia Testnet",
 };
 
 export function getChainName(chainId: number): string {
@@ -32,7 +33,7 @@ export async function connectWallet(): Promise<{
   }
 
   const provider = new BrowserProvider(window.ethereum);
-  
+
   const accounts = await provider.send("eth_requestAccounts", []);
   if (!accounts || accounts.length === 0) {
     throw new Error("No accounts found. Please connect your wallet.");
@@ -46,7 +47,7 @@ export async function connectWallet(): Promise<{
   return { address, chainId, provider, signer };
 }
 
-export async function switchToSepolia(): Promise<void> {
+export async function switchToLocal(): Promise<void> {
   if (!window.ethereum) {
     throw new Error("MetaMask is not installed");
   }
@@ -54,7 +55,7 @@ export async function switchToSepolia(): Promise<void> {
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: `0x${SEPOLIA_CHAIN_ID.toString(16)}` }],
+      params: [{ chainId: `0x${TARGET_CHAIN_ID.toString(16)}` }],
     });
   } catch (switchError: any) {
     if (switchError.code === 4902) {
@@ -62,15 +63,15 @@ export async function switchToSepolia(): Promise<void> {
         method: "wallet_addEthereumChain",
         params: [
           {
-            chainId: `0x${SEPOLIA_CHAIN_ID.toString(16)}`,
-            chainName: "Sepolia Testnet",
+            chainId: `0x${TARGET_CHAIN_ID.toString(16)}`,
+            chainName: "Ganache Local",
             nativeCurrency: {
-              name: "Sepolia ETH",
-              symbol: "SEP",
+              name: "Local ETH",
+              symbol: "ETH",
               decimals: 18,
             },
-            rpcUrls: ["https://rpc.sepolia.org"],
-            blockExplorerUrls: ["https://sepolia.etherscan.io"],
+            rpcUrls: ["http://127.0.0.1:8545"],
+            blockExplorerUrls: [],
           },
         ],
       });

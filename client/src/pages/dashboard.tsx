@@ -17,17 +17,27 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Activity, AlertCircle, CheckCircle2, DollarSign, Filter } from "lucide-react";
 import { type Transaction, type DashboardStats, type FraudAlert as FraudAlertType, type BlockchainBlock } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { connectWallet } from "@/lib/web3";
+import { useWallet } from "@/contexts/wallet-context";
+import { Contract, parseEther } from "ethers";
+import { TransactionRegistryABI, REGISTRY_ADDRESS } from "@/lib/contracts";
 
 export default function Dashboard() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [fraudAlerts, setFraudAlerts] = useState<FraudAlertType[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
   const { toast } = useToast();
+  const { isConnected, address } = useWallet();
 
   // Fetch dashboard stats
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -38,8 +48,8 @@ export default function Dashboard() {
   const { data: transactions = [], isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/transactions", statusFilter],
     queryFn: async () => {
-      const url = statusFilter === "all" 
-        ? "/api/transactions" 
+      const url = statusFilter === "all"
+        ? "/api/transactions"
         : `/api/transactions?status=${statusFilter}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch transactions");
@@ -54,7 +64,13 @@ export default function Dashboard() {
     transactionCount: number;
     flaggedCount: number;
   }>({
-    queryKey: ["/api/trust-score"],
+    queryKey: ["/api/trust-score", address],
+    queryFn: async () => {
+      const url = address ? `/api/trust-score?address=${address}` : "/api/trust-score";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch trust score");
+      return res.json();
+    }
   });
 
   // Fetch blockchain blocks
@@ -77,14 +93,53 @@ export default function Dashboard() {
     timestamp: string;
     score: number;
   }>>({
-    queryKey: ["/api/analytics/trust-trend"],
+    queryKey: ["/api/analytics/trust-trend", address],
+    queryFn: async () => {
+      const url = address ? `/api/analytics/trust-trend?address=${address}` : "/api/analytics/trust-trend";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch trust score trend");
+      return res.json();
+    }
   });
 
   // Create transaction mutation
   const createTransactionMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/transactions", data);
-      return await response.json();
+      try {
+        // 1. Get ML Prediction from Flask Phase 1 Backend
+        const mlResponse = await fetch('http://127.0.0.1:5000/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: parseFloat(data.amount) })
+        });
+        const mlResult = await mlResponse.json();
+        const isFraudulent = mlResult.isFraudulent;
+        const fraudScore = isFraudulent ? "85.0" : "5.0"; // Placeholder score based on boolean
+
+        // 2. Transact with Blockchain
+        const { signer } = await connectWallet();
+        const registryContract = new Contract(REGISTRY_ADDRESS, TransactionRegistryABI.abi, signer);
+
+        const tx = await registryContract.addTransaction(
+          parseEther(data.amount.toString()),
+          mlResult.timestamp,
+          isFraudulent,
+          mlResult.predictionHash
+        );
+        const receipt = await tx.wait();
+
+        // 3. Save to Dashboard local display db with the actual hash
+        const fullData = {
+          ...data,
+          isFraudulent,
+          fraudScore,
+          transactionHash: receipt.hash || tx.hash
+        };
+        const response = await apiRequest("POST", "/api/transactions", fullData);
+        return await response.json();
+      } catch (error: any) {
+        throw new Error(error.message || "Failed to process transaction securely.");
+      }
     },
     onSuccess: (newTransaction: Transaction) => {
       // Invalidate and refetch
@@ -114,8 +169,9 @@ export default function Dashboard() {
       }
     },
     onError: (error: any) => {
+      console.error("Transaction Error:", error);
       toast({
-        title: "Error",
+        title: "Transaction Failed",
         description: error.message || "Failed to submit transaction",
         variant: "destructive",
       });
@@ -128,6 +184,40 @@ export default function Dashboard() {
 
   const handleTransactionSubmit = (data: any) => {
     createTransactionMutation.mutate(data);
+  };
+
+  const handleExportData = () => {
+    if (!transactions.length) {
+      toast({ title: "No Data", description: "There are no transactions to export.", variant: "destructive" });
+      return;
+    }
+
+    // Create CSV content
+    const headers = ["ID", "Amount", "Status", "Fraud Score", "Timestamp", "User ID", "Recipient", "Transaction Hash"];
+    const rows = transactions.map(t => [
+      t.id,
+      t.amount,
+      t.status,
+      t.fraudScore,
+      new Date(t.timestamp).toISOString(),
+      t.userId,
+      t.recipient,
+      t.transactionHash
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+
+    // Trigger download
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `transaction_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({ title: "Export Complete", description: "Your transaction data has been successfully downloaded." });
   };
 
   const filteredTransactions = statusFilter === "all"
@@ -232,15 +322,59 @@ export default function Dashboard() {
             <Card data-testid="card-quick-actions">
               <CardContent className="pt-6 space-y-3">
                 <h3 className="font-semibold mb-4" data-testid="text-quick-actions-title">Quick Actions</h3>
-                <Button variant="outline" className="w-full justify-start" data-testid="button-view-reports">
-                  View Fraud Reports
-                </Button>
-                <Button variant="outline" className="w-full justify-start" data-testid="button-export-data">
+
+                <Dialog open={isReportsOpen} onOpenChange={setIsReportsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start" data-testid="button-view-reports">
+                      View Fraud Reports
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                      <DialogTitle>Comprehensive Fraud Analysis</DialogTitle>
+                      <DialogDescription>Overview of flagged transactions and algorithmic predictions</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <FraudDetectionChart data={chartData} isLoading={chartLoading} />
+                        <TrustScoreTrend data={trendData} isLoading={trendLoading} />
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Button variant="outline" className="w-full justify-start" data-testid="button-export-data" onClick={handleExportData}>
                   Export Data
                 </Button>
-                <Button variant="outline" className="w-full justify-start" data-testid="button-settings">
-                  System Settings
-                </Button>
+
+                <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start" data-testid="button-settings">
+                      System Settings
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Admin Configuration</DialogTitle>
+                      <DialogDescription>Modify global rules for the ML evaluation engine.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-6 py-4">
+                      <div className="flex items-center justify-between space-x-2">
+                        <Label htmlFor="auto-block">Auto-Block Flagged Transactions</Label>
+                        <Switch id="auto-block" defaultChecked />
+                      </div>
+                      <div className="flex items-center justify-between space-x-2">
+                        <Label htmlFor="email-alerts">Email Alerts for High Fraud Score</Label>
+                        <Switch id="email-alerts" defaultChecked />
+                      </div>
+                      <div className="flex items-center justify-between space-x-2">
+                        <Label htmlFor="strict-mode">Strict ML Evaluation Mode</Label>
+                        <Switch id="strict-mode" />
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
               </CardContent>
             </Card>
           </div>

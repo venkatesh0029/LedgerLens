@@ -8,14 +8,10 @@ import time
 # Add backend directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ml.model import load_model, train_dummy_model
+from ml.model import load_model
 
 app = Flask(__name__)
 CORS(app)
-
-# Ensure a dummy model exists for startup
-if not os.path.exists('ml/model.pkl'):
-    train_dummy_model()
 
 model = load_model()
 
@@ -35,7 +31,7 @@ def predict():
         features = [[amount]]
         
         # Get ML prediction
-        prediction = int(model.predict(features)[0])
+        prediction = model.predict(amount)
         is_fraudulent = True if prediction == 1 else False
         
         # Create a hash of the prediction for the blockchain

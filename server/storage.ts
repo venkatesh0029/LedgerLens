@@ -18,22 +18,22 @@ export interface IStorage {
   getAllTransactions(): Promise<Transaction[]>;
   getTransactionsByStatus(status: string): Promise<Transaction[]>;
   getTransactionsByUser(userId: string): Promise<Transaction[]>;
-  
+
   // User/Node methods
   createUserNode(node: InsertUserNode): Promise<UserNode>;
   getUserNode(address: string): Promise<UserNode | undefined>;
   updateUserNode(address: string, updates: Partial<UserNode>): Promise<UserNode | undefined>;
   getAllUserNodes(): Promise<UserNode[]>;
-  
+
   // Blockchain methods
   createBlock(block: InsertBlockchainBlock): Promise<BlockchainBlock>;
   getLatestBlock(): Promise<BlockchainBlock | undefined>;
   getAllBlocks(): Promise<BlockchainBlock[]>;
-  
+
   // Trust score history
   addTrustScoreHistory(userId: string, score: number): Promise<TrustScoreHistory>;
   getTrustScoreHistory(userId: string, limit?: number): Promise<TrustScoreHistory[]>;
-  
+
   // Analytics
   getDashboardStats(): Promise<DashboardStats>;
 }
@@ -51,10 +51,10 @@ export class MemStorage implements IStorage {
     this.blocks = new Map();
     this.trustScoreHistory = new Map();
     this.blockCounter = 0;
-    
+
     // Initialize with genesis block
     this.initializeGenesisBlock();
-    
+
     // Initialize default user node
     this.initializeDefaultUser();
   }
@@ -90,30 +90,31 @@ export class MemStorage implements IStorage {
 
   private calculateFraudScore(transaction: InsertTransaction): number {
     let score = parseFloat(transaction.fraudScore || "0");
-    
+
     // Apply rule-based fraud detection
     const amount = parseFloat(transaction.amount);
-    
+
     // High amount transactions are riskier
     if (amount > 10000) score += 30;
     else if (amount > 5000) score += 15;
     else if (amount > 1000) score += 5;
-    
+
     // Round trip transactions (same user and recipient)
     if (transaction.userId === transaction.recipient) {
       score += 50;
     }
-    
+
     // If manually marked as fraudulent
     if (transaction.isFraudulent) {
       score = Math.max(score, 85);
     }
-    
+
     return Math.min(Math.max(score, 0), 100);
   }
 
   private updateUserTrustScore(userId: string, isFraud: boolean): void {
-    const user = this.userNodes.get(userId);
+    const normalizedUserId = userId.toLowerCase();
+    const user = this.userNodes.get(normalizedUserId);
     if (!user) return;
 
     const currentScore = parseFloat(user.trustScore);
@@ -131,27 +132,27 @@ export class MemStorage implements IStorage {
     user.trustScore = newScore.toFixed(2);
     user.transactionCount++;
     user.lastUpdated = new Date();
-    
-    this.userNodes.set(userId, user);
-    this.addTrustScoreHistory(userId, newScore);
+
+    this.userNodes.set(normalizedUserId, user);
+    this.addTrustScoreHistory(normalizedUserId, newScore);
   }
 
   // Transaction methods
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = randomUUID();
-    const fraudScore = this.calculateFraudScore(insertTransaction);
-    const isFraudulent = fraudScore >= 70;
+    const fraudScore = insertTransaction.fraudScore || this.calculateFraudScore(insertTransaction).toFixed(2);
+    const isFraudulent = insertTransaction.isFraudulent ?? (parseFloat(fraudScore) >= 70);
     const status = isFraudulent ? "flagged" : insertTransaction.status || "verified";
-    
+
     const transactionData = {
       ...insertTransaction,
       amount: insertTransaction.amount,
-      fraudScore: fraudScore.toFixed(2),
+      fraudScore: fraudScore.toString(),
       isFraudulent,
       status,
     };
-    
-    const transactionHash = this.generateHash(
+
+    const transactionHash = insertTransaction.transactionHash || this.generateHash(
       `${insertTransaction.userId}-${insertTransaction.amount}-${Date.now()}`
     );
 
@@ -164,9 +165,10 @@ export class MemStorage implements IStorage {
     };
 
     this.transactions.set(id, transaction);
-    
+
     // Update user trust score
-    const user = this.userNodes.get(insertTransaction.userId);
+    const normalizedUserId = insertTransaction.userId.toLowerCase();
+    const user = this.userNodes.get(normalizedUserId);
     if (!user) {
       // Create new user if doesn't exist
       await this.createUserNode({
@@ -177,11 +179,9 @@ export class MemStorage implements IStorage {
       });
     }
     this.updateUserTrustScore(insertTransaction.userId, isFraudulent);
-    
-    // Create new block every 5 transactions
-    if (this.transactions.size % 5 === 0) {
-      await this.createBlockFromPendingTransactions();
-    }
+
+    // Create new block every 1 transaction for UI responsiveness
+    await this.createBlockFromPendingTransactions();
 
     return transaction;
   }
@@ -220,20 +220,21 @@ export class MemStorage implements IStorage {
       lastUpdated: new Date(),
     };
 
-    this.userNodes.set(node.address, node);
+    this.userNodes.set(node.address.toLowerCase(), node);
     return node;
   }
 
   async getUserNode(address: string): Promise<UserNode | undefined> {
-    return this.userNodes.get(address);
+    return this.userNodes.get(address.toLowerCase());
   }
 
   async updateUserNode(address: string, updates: Partial<UserNode>): Promise<UserNode | undefined> {
-    const node = this.userNodes.get(address);
+    const normalizedAddress = address.toLowerCase();
+    const node = this.userNodes.get(normalizedAddress);
     if (!node) return undefined;
 
     const updated = { ...node, ...updates, lastUpdated: new Date() };
-    this.userNodes.set(address, updated);
+    this.userNodes.set(normalizedAddress, updated);
     return updated;
   }
 
@@ -246,7 +247,7 @@ export class MemStorage implements IStorage {
     const latestBlock = await this.getLatestBlock();
     const previousHash = latestBlock?.blockHash || "0";
     const blockNumber = this.blockCounter + 1;
-    
+
     const blockData = `${blockNumber}-${previousHash}-${Date.now()}`;
     const blockHash = this.generateHash(blockData);
     const merkleRoot = this.generateHash(`merkle-${blockNumber}`);
@@ -255,7 +256,7 @@ export class MemStorage implements IStorage {
       blockNumber,
       previousHash,
       blockHash,
-      transactionCount: 5,
+      transactionCount: 1,
       merkleRoot,
     };
 
@@ -291,20 +292,21 @@ export class MemStorage implements IStorage {
 
   // Trust score history
   async addTrustScoreHistory(userId: string, score: number): Promise<TrustScoreHistory> {
+    const normalizedUserId = userId.toLowerCase();
     const history: TrustScoreHistory = {
       id: randomUUID(),
-      userId,
+      userId: normalizedUserId,
       trustScore: score.toFixed(2),
       timestamp: new Date(),
     };
 
-    if (!this.trustScoreHistory.has(userId)) {
-      this.trustScoreHistory.set(userId, []);
+    if (!this.trustScoreHistory.has(normalizedUserId)) {
+      this.trustScoreHistory.set(normalizedUserId, []);
     }
 
-    const userHistory = this.trustScoreHistory.get(userId)!;
+    const userHistory = this.trustScoreHistory.get(normalizedUserId)!;
     userHistory.push(history);
-    
+
     // Keep only last 20 entries
     if (userHistory.length > 20) {
       userHistory.shift();
@@ -314,7 +316,8 @@ export class MemStorage implements IStorage {
   }
 
   async getTrustScoreHistory(userId: string, limit: number = 10): Promise<TrustScoreHistory[]> {
-    const history = this.trustScoreHistory.get(userId) || [];
+    const normalizedUserId = userId.toLowerCase();
+    const history = this.trustScoreHistory.get(normalizedUserId) || [];
     return history.slice(-limit);
   }
 
@@ -322,7 +325,7 @@ export class MemStorage implements IStorage {
   async getDashboardStats(): Promise<DashboardStats> {
     const allTransactions = await this.getAllTransactions();
     const flaggedTransactions = allTransactions.filter((t) => t.status === "flagged");
-    
+
     const allUsers = await this.getAllUserNodes();
     const totalTrustScore = allUsers.reduce(
       (sum, user) => sum + parseFloat(user.trustScore),

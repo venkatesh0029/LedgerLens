@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
-import { 
-  WalletState, 
-  connectWallet, 
-  getWalletBalance, 
+import {
+  WalletState,
+  connectWallet,
+  getWalletBalance,
   getChainName,
-  SEPOLIA_CHAIN_ID 
+  TARGET_CHAIN_ID
 } from "@/lib/web3";
 
 interface WalletContextType extends WalletState {
@@ -108,7 +108,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [state.address, disconnect, updateBalance]);
 
   const chainName = state.chainId ? getChainName(state.chainId) : "Not Connected";
-  const isCorrectNetwork = state.chainId === SEPOLIA_CHAIN_ID;
+  const isCorrectNetwork = state.chainId === TARGET_CHAIN_ID;
 
   return (
     <WalletContext.Provider

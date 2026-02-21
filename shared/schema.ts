@@ -47,11 +47,7 @@ export const trustScoreHistory = pgTable("trust_score_history", {
 });
 
 // Schemas for inserts
-export const insertTransactionSchema = createInsertSchema(transactions).omit({
-  id: true,
-  timestamp: true,
-  transactionHash: true,
-});
+export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, timestamp: true, transactionHash: true, }).extend({ transactionHash: z.string().optional() });
 
 export const insertUserNodeSchema = createInsertSchema(userNodes).omit({
   id: true,

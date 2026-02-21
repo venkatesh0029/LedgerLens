@@ -31,7 +31,7 @@ interface TransactionFormProps {
 
 export function TransactionForm({ onSubmit, isPending }: TransactionFormProps) {
   const { isConnected, address } = useWallet();
-  
+
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
@@ -65,14 +65,14 @@ export function TransactionForm({ onSubmit, isPending }: TransactionFormProps) {
           )}
         </CardTitle>
         <CardDescription>
-          {isConnected 
-            ? "Submit a transaction from your connected wallet" 
+          {isConnected
+            ? "Submit a transaction from your connected wallet"
             : "Connect your wallet or enter a wallet address manually"}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => console.error("Form Validation Errors:", errors))} className="space-y-4">
             <FormField
               control={form.control}
               name="userId"
@@ -196,6 +196,12 @@ export function TransactionForm({ onSubmit, isPending }: TransactionFormProps) {
                 )}
               />
             </div>
+
+            {Object.keys(form.formState.errors).length > 0 && (
+              <div className="text-red-500 text-sm font-semibold p-2 bg-red-100 rounded">
+                Validation Errors: {JSON.stringify(form.formState.errors)}
+              </div>
+            )}
 
             <Button
               type="submit"

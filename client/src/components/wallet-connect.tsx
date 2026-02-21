@@ -10,21 +10,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/contexts/wallet-context";
-import { switchToSepolia } from "@/lib/web3";
+import { switchToLocal } from "@/lib/web3";
 import { Wallet, ChevronDown, Copy, ExternalLink, LogOut, AlertTriangle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function WalletConnect() {
-  const { 
-    isConnected, 
-    address, 
-    balance, 
-    chainName, 
+  const {
+    isConnected,
+    address,
+    balance,
+    chainName,
     isCorrectNetwork,
-    connect, 
-    disconnect, 
-    isConnecting, 
-    error 
+    connect,
+    disconnect,
+    isConnecting,
+    error
   } = useWallet();
   const { toast } = useToast();
 
@@ -44,16 +44,19 @@ export function WalletConnect() {
 
   const openEtherscan = () => {
     if (address) {
-      window.open(`https://sepolia.etherscan.io/address/${address}`, "_blank");
+      toast({
+        title: "Local Network",
+        description: "Etherscan is not available for local Ganache network.",
+      });
     }
   };
 
   const handleSwitchNetwork = async () => {
     try {
-      await switchToSepolia();
+      await switchToLocal();
       toast({
         title: "Network Switched",
-        description: "Successfully switched to Sepolia Testnet",
+        description: "Successfully switched to Local Ganache",
       });
     } catch (err: any) {
       toast({
@@ -107,25 +110,25 @@ export function WalletConnect() {
           <span className="font-mono text-xs" data-testid="text-wallet-full-address">{formatAddress(address!)}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        
+
         <div className="px-2 py-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Network</span>
             <div className="flex items-center gap-2">
-              <Badge 
-                variant={isCorrectNetwork ? "default" : "destructive"} 
+              <Badge
+                variant={isCorrectNetwork ? "default" : "destructive"}
                 className="text-xs"
                 data-testid="badge-network"
               >
                 {chainName}
               </Badge>
               {!isCorrectNetwork && (
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  className="h-6 w-6" 
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6"
                   onClick={handleSwitchNetwork}
-                  title="Switch to Sepolia"
+                  title="Switch to Local Network"
                   data-testid="button-switch-network"
                 >
                   <RefreshCw className="h-3 w-3" />
@@ -138,22 +141,22 @@ export function WalletConnect() {
             <span className="text-sm font-mono" data-testid="text-wallet-balance">{balance} ETH</span>
           </div>
         </div>
-        
+
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuItem onClick={copyAddress} data-testid="button-copy-address">
           <Copy className="h-4 w-4 mr-2" />
           Copy Address
         </DropdownMenuItem>
         <DropdownMenuItem onClick={openEtherscan} data-testid="button-view-etherscan">
           <ExternalLink className="h-4 w-4 mr-2" />
-          View on Etherscan
+          View Blockchain (Local)
         </DropdownMenuItem>
-        
+
         <DropdownMenuSeparator />
-        
-        <DropdownMenuItem 
-          onClick={disconnect} 
+
+        <DropdownMenuItem
+          onClick={disconnect}
           className="text-destructive focus:text-destructive"
           data-testid="button-disconnect-wallet"
         >
